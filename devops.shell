@@ -1,0 +1,632 @@
+#!/bin/bash
+# devops.shell (MacOS version)
+#Last updated: Mon Nov 18, 2019
+#
+# This script creates a shell environment to do faster work in.
+# It include variables, "blobs", tables, and functions that
+# are all exported so they become "environment variables".  This means they are
+# available to any sub-shells that are launched beneath this shell.
+#
+# The exported elements contain handy functions that act as tools for the
+# following devops work environments:
+#
+# * Vagrant
+# * Ansible
+# * VirtualBox
+# * OpenSSH
+#
+#
+# The tools for those environments are available as long as the the parent shell
+# (the one launched by this script) remains active.  When that parent shell
+# terminates, the functions are no longer available.
+#
+#
+# To use the devops.shell, simply execute the following command:
+#
+#       bash devops.shell
+#
+#
+# This version of the script was created and tested on MacOS.
+#
+# Not all of the bugs have been removed from the Cygwin version, though it is
+# partially functional and still quite handy, even with the bugs.
+#
+#-bkh
+################################################################################
+
+#globvars-----------------------------------------------------------------------
+export VAGRANT_PARENT_DIR=~/vagrant
+export BOX_DEFAULT="generic\/debian9"
+export BASENAME_DEFAULT=vm
+export SETSIZE_DEFAULT=3
+export SOURCEDIR_DEFAULT="..\/data"
+export DESTDIR_DEFAULT="\/vagrant\/data"
+export PROVIDER_DEFAULT=virtualbox
+#
+# vagrantfile template #########################################################
+export VAGRANTFILE_TEMPLATE="# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure('2') do |config|
+    config.vm.box = \"___BOX___\"
+    config.vm.define \"___VM_NAME___\"
+    config.vm.provider :___PROVIDER___ do |vb|
+       vb.name = \"___VM_NAME___\"
+    end
+    config.vm.synced_folder \"___SOURCEDIR___\", \"___DESTDIR___\"
+end"
+# end vagrantfile template #####################################################
+#
+#
+#
+#funcs--------------------------------------------------------------------------
+#Define opshell functions.
+#non_dynamic_funcs--------------------------------------------------------------
+set_global_vagrant_environment_tables (){
+   export b_raw="$(vagrant global-status|sed -r 's/[[:cntrl:]]//g;s/ +$//g'||return)"
+   export b_table_0="$(echo "$b_raw"|sed -rn '/^id +name +provider +state +directory/,/^[[:space:]]+/p'|sed -rn '$n;p')"
+   export b_table_1="$(echo "$b_table_0"|sed -rn '/^-{20,}/n;p'|expand|tr -s ' '|column -t -s ' ')"
+   export b_line="$(echo "$b_table_0"|sed -rn '/^-{20,}/p')"
+   export b_table_2="$(echo "$b_table_1"|sed -rn '1p' ; echo "$b_line" ; echo "$b_table_1"|sed -rn '2,$p')"
+   export b_vm_only_table="$(echo "$b_table_1"|sed -rn '2,$p')"
+}
+#end_non_dynamic_funcs----------------------------------------------------------
+#
+#dynamic_funcs------------------------------------------------------------------
+a_all_hostnames (){
+   #Takes no args
+   #ago
+   a_export_local_config_file_setting
+   ansible all -o -i hosts -m command -a hostname
+}
+a_config_output_standard (){
+   
+   echo "[defaults]
+   become = True
+   become_user = root
+   become_method = sudo
+   host_key_checking = False
+   system_warnings = False
+   deprecation_warnings = False
+   log_path = ./ansible.log
+   [privilege_escalation]
+   [paramiko_connection]
+   [ssh_connection]
+   ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=FATAL
+   [accelerate]
+   [selinux]
+   [colors]"|sed 's/^   //g'
+}
+a_go (){
+   #Takes no args
+   #Puts the user in their devault vagrant action sub dir, for ansible work
+   vgo
+   mkcd sub
+}
+a_job_run_on_group_wizard (){
+   #Takes no args
+   #
+   local JOB_COMMAND
+   local JOB_FILE
+   local JOB_GROUP
+   #Go to working devops shell working directory
+   #ago
+   a_export_local_config_file_setting
+   #
+   #Use wizard to create a job
+   echo "Please enter a job command you would like to run on a group."
+   echo -n "Job Command>>> "
+   read JOB_COMMAND
+   JOB_FILE=job.$RANDOM
+   mkdir -p jobs.d
+   echo "$JOB_COMMAND" >> jobs.d/$JOB_FILE
+   echo
+   #
+   #Use wizard to get group
+   echo "These groups are available:"
+   grep -e "\[" hosts
+   echo
+   echo -n "On which ansible group would you like to run the job? [all]: "
+   read JOB_GROUP
+   test -z $JOB_GROUP && JOB_GROUP=all
+   #
+   echo "-------------"
+   echo "Deploying job"
+   echo "-------------"
+   #Deploy the job
+   ansible $JOB_GROUP -o -b -i hosts -m copy -a "src=jobs.d/$JOB_FILE dest=/var/tmp/$JOB_FILE"
+   #
+   echo "-------------"
+   echo "Executing job: $(cat jobs.d/$JOB_FILE)"
+   echo "-------------"
+   #Execute the job
+   ansible $JOB_GROUP -o -b -i hosts -m command -a "bash /var/tmp/$JOB_FILE"
+}
+a_export_local_config_file_setting (){
+   #Takes no args
+   #Simply exports config for sub-shells
+   export ANSIBLE_CONFIG=./ansible.cfg
+}
+a_host_list_output_by_pattern (){
+   #Output an ansible host list from a pattern
+   set -- $(echo $@|cut -d'/' -f1)
+   test $# -eq 0 && (echo Missing argument. Exiting... ; return )
+   for y in $@ ; do
+      echo "[$y]"
+      for x in $(vlist|grep $y) ; do
+         echo -n "$x  "
+         echo -n "ansible_host=$(vinfo $x     | grep -w HostName         | awk '{print $2}')  "
+         echo -n "ansible_user=$(vinfo $x     | grep -w User             | awk '{print $2}')  "
+         echo -n "ansible_port=$(vinfo $x     | grep -w Port             | awk '{print $2}')  "
+         echo    "ansible_ssh_private_key_file=$(vinfo $x | grep -w IdentityFile     | awk '{print $2}')"
+      done
+   done
+}
+a_playbook_template_dump_by_pattern (){
+   #Takes 1-N args:     Args 1-N are VM-name patterns:
+   #1-N could be, for example:  bkh fs blue
+   #Dumps out an example playbook template for each pattern provided
+   #(Provide a VM name pattern to the function
+   set -- $(echo $@|cut -d'/' -f1)
+   test $# -eq 0 && (echo Missing argument. Exiting... ; return )
+   BECOME=yes
+   BECOME_METHOD=sudo
+   BECOME_USER=root
+   BKUP_FILE=/var/tmp/etc.tgz
+   COLLECTION_DIR_NAME=ETC_CFG_BKUP.d
+   #Create the joblet
+   cat > ./job.1 <<EO_joblet_1
+#!/bin/bash
+#Create a configuration backup
+tar -zcvf $BKUP_FILE  /etc
+EO_joblet_1
+   #
+   #Create a "configuration backup" playbook template, made up of three tasks
+   for y in $@ ; do
+         cat <<EO_playbook_template_1
+- name: Playbook template for $y
+  hosts:  $y
+  become: $BECOME_USER
+  become_method: $BECOME_METHOD
+  become_user: $BECOME_USER
+
+  tasks:
+     - name: Example Task 1 for $y Group -- Push backup joblet "job.1" up to hosts
+       copy:
+          src: ./job.1
+          dest: /var/tmp/job.1
+
+     - name: Example Task 2 for $y Group -- Execute joblet "job.1" up on the hosts
+       command: "bash /var/tmp/job.1"
+
+     - name: Example Task 3 for $y Group -- Collect the backup tarball from the hosts
+       fetch:
+          src: $BKUP_FILE
+          dest: $COLLECTION_DIR_NAME
+EO_playbook_template_1
+   done
+}
+a_set_up_a_full_standard_playbook_config_by_pattern (){
+   #Takes 1-N args:
+   #Creates a standard ansible setup by pattern
+   set -- $(echo $@|cut -d'/' -f1)
+   if [ $# -eq 0 ] ; then
+      echo
+      echo "Requires an argument.  Doing nothing..."|sed 's/./-/g'
+      echo "Requires an argument.  Doing nothing..."
+      echo "Requires an argument.  Doing nothing..."|sed 's/./-/g'
+      return 
+   fi
+   a_config_output_standard | tee ansible.cfg
+   a_host_list_output_by_pattern $@ | tee hosts
+   a_playbook_template_dump_by_pattern $@ | tee playbook.yml
+   echo
+   echo
+   echo "---------------------------------------------------------------"
+   echo "NOTE: If config is empty, you may need to run 'vrefreshtables'."
+   echo "---------------------------------------------------------------"
+}
+ago (){
+   a_go
+}
+devops_auto_create_example_full_stack (){
+   echo '
+   #Takes no args.
+   #Sets up a full stack of vagrant vms, ssh connections, and ansible config
+   #
+   ' > /dev/null
+   vgo
+   mkcd "example.d"
+   vauto_create_vagrantfiles_via_wizard example 3
+   vfaststartbypattern example{1..3}
+   vscreenattachtoall
+   vrefreshtables
+   a_set_up_a_full_standard_playbook_config_by_pattern example{1..3}
+   a_all_hostnames
+}
+Slistcomplete_keys_in_agent (){
+   SL
+}
+SL (){
+   ssh-add -L
+}
+Slistfingerprints_of_keys_inagent (){
+   Sl
+}
+Sl (){
+   ssh-add -l
+}
+Skeyloadby_pattern_into_agent (){
+   set -- $(echo $@|cut -d'/' -f1)
+   for y in $@ ; do
+      for x in $(vinfo $y | grep IdentityFile | awk '{print $2}') ; do
+         ssh-add $x
+      done
+   done
+}
+Skeyloadall_into_agent (){
+   Skl
+}
+Skl (){
+   for x in $(vinfo |grep IdentityFile|awk '{print $2}') ; do
+      ssh-add $x
+   done
+}
+Skeydeletedefaultsfromagent (){
+   ssh-add -d
+}
+Skd (){
+   Skeydeletedefaultsfromagent
+}
+Skeydelete_defaults_from_agent (){
+   Skeydeletedefaultsfromagent
+}
+SkeyDelete_all_from_agent (){
+   ssh-add -D
+}
+SkD (){
+   SkeyDelete_all_from_agent
+}
+vblistrunningvms (){
+   echo
+   echo "Running VirtualBox VMs:"
+   echo "-----------------------"
+   echo
+   VBoxManage list runningvms
+}
+vconfigshow (){
+   vagrant ssh-config $(vget_id_from_name $1)
+}
+vcreatevmsetwiz (){
+   #Takes 0 arg
+   #
+   # Gets the following values from the user:
+   # * Base vagrant vm name to create set from
+   # * the number of vms to create
+   # * the template Vagrantfile to use to create VMs
+   echo -n "Please enter a Vagrant 'box' to use for your set of VMs [$BOX_DEFAULT]: "
+   read ___BOX___
+   if [ -z $___BOX___ ] ; then
+      ___BOX___=$BOX_DEFAULT
+   fi
+   #
+   echo -n "Please enter a base name for your set of VMs [$BASENAME_DEFAULT]: "
+   read ___BASENAME___
+   if [ -z $___BASENAME___ ] ; then
+      ___BASENAME___=$BASENAME_DEFAULT
+   fi
+   #
+   echo -n "Please enter the number of VMs in your set [$SETSIZE_DEFAULT]: "
+   read ___SETSIZE___
+   if [ -z $___SETSIZE___ ] ; then
+      ___SETSIZE___=$SETSIZE_DEFAULT
+   fi
+   #
+   echo -n "Please enter a provider for your set of VMs [$PROVIDER_DEFAULT]: "
+   read ___PROVIDER___
+   if [ -z $___PROVIDER___ ] ; then
+      ___PROVIDER___=$PROVIDER_DEFAULT
+   fi
+   #
+   echo -n "Please enter a shared source dir for your set of VMs [$SOURCEDIR_DEFAULT]: "
+   read ___SOURCEDIR___
+   if [ -z $___SOURCEDIR___ ] ; then
+      ___SOURCEDIR___=$SOURCEDIR_DEFAULT
+   fi
+   #
+   echo -n "Please enter a shared destination dir for your set of VMs [$DESTDIR_DEFAULT]: "
+   read ___DESTDIR___
+   if [ -z $___DESTDIR___ ] ; then
+      ___DESTDIR___=$DESTDIR_DEFAULT
+   fi
+   #
+   #Create vagrant directory for each vm in set.
+   for x in $(seq 1 ${___SETSIZE___}) ; do
+      VM_NAME=${___BASENAME___}${x}
+      echo "Setting up Vagrant VM: $VM_NAME"
+      echo "-------------------------------"
+      export V_DIR=$VAGRANT_PARENT_DIR/$VM_NAME
+      mkdir -p $V_DIR
+      pushd $V_DIR 2>&1 >/dev/null
+      vagrant init
+      popd 2>&1 >/dev/null
+      echo
+      echo
+      echo "Configure the Vagrantfile for VM: $VM_NAME"
+      echo "------------------------------------------"
+      echo "$VAGRANTFILE_TEMPLATE" | \
+         sed "s@___BOX___@${BOX_DEFAULT}@g" | \
+         sed "s@___PROVIDER___@${___PROVIDER___}@g" | \
+         sed "s@___VM_NAME___@${VM_NAME}@g" | \
+         sed "s@___SOURCEDIR___@${___SOURCEDIR___}@g" | \
+         sed "s@___DESTDIR___@${___DESTDIR___}@g"  \
+         > $V_DIR/Vagrantfile
+      echo
+      echo
+   done
+}
+vdisplay_vagrant_missing_vms_error (){
+   echo
+   echo "It looks like there are no Vagrant VMs set up on this machine."
+   echo "Try running any of these commands to get help on getting started using"
+   echo "the DevOps Shell Kit:"
+   echo "   * vcreatevmsetwiz  --  To create a set of VMs"
+   echo "     ---"
+   echo "   * vhelp            --  To see other Vagrant-related commands"
+   echo "   * Shelp            --  To see SSH-related commands"
+   echo "   * ahelp            --  To see Ansible-related commands"
+   echo
+   return
+}
+vglomlinktouser (){
+   echo -n "Enter username to link directories to: "
+   read LUSER
+   mkdir -p ~/.vagrant.d ~/vagrant
+   ln -s /home/$LUSER/.vagrant.d/boxes/ ~/.vagrant.d/boxes
+   ln -s /home/$LUSER/vagrant/data/ ~/vagrant/data
+}
+vgroupdestroybypattern (){
+   #Takes 1-N args:     Args 1-N are VM name patterns to destroy
+   #NOTE: All VMs matching pattern will be destroyed
+   set -- $(echo $@|cut -d'/' -f1)
+   for y in $@ ; do
+      for x in $(vlist|grep $y) ; do
+         vagrant destroy $(vget_id_from_name $x)
+      done
+   done
+   if [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   elif [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   fi
+   vrefreshtables
+}
+vgroupstartbypattern (){
+   #Takes 1 arg:        Arg 1 is VM name pattern to start
+   set -- $(echo $@|cut -d'/' -f1)
+   cd $VAGRANT_PARENT_DIR
+   for x in $(find . -type f -name Vagrantfile -exec dirname {} \; | grep $1) ; do
+      pushd $x 2>&1 >/dev/null
+      vagrant up
+      popd 2>&1 >/dev/null
+   done
+   if [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   elif [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   fi
+   vrefreshtables
+}
+vgroupstopbypattern (){
+   #Takes 1 arg:        Arg 1 is VM name pattern to stop
+   set -- $(echo $@|cut -d'/' -f1)
+   for x in $(vlist|grep $1) ; do
+      vagrant halt $(vget_id_from_name $x)
+   done
+   if [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   elif [ ${FUNCNAME[1]} = vfaststartbypattern ] 2>/dev/null; then
+      return
+   fi
+   vrefreshtables
+}
+vgrouplist (){
+   cd $VAGRANT_PARENT_DIR
+   for x in $(find . -type f -name Vagrantfile -exec dirname {} \; ) ; do
+      echo $x|cut -d'/' -f2
+   done|sort
+}
+vscreenreminderdisplay (){
+   #Takes no args.
+   echo "Execute 'screen -ls' to view screens as they are launching."
+   echo "Execute 'screen -r <number>' to attach to a screen."
+   echo "Execute 'vscreenattachtoall' to cycle through all the screens"
+}
+vfaststartbypattern (){
+   #Takes 1-N Args:     Args 1-N are vm name patterns to start
+   #Start VMs in parallel
+   #(This function is brutally awesome.)
+   set -- $(echo $@|cut -d'/' -f1)
+   test $# -eq 0 && (echo Missing argument. Exiting... ; return )
+   for x in $@ ; do
+      screen -d -m bash -c "vgroupstartbypattern $x"
+   done
+   echo "VMs are starting in parallel."
+   echo
+   echo
+   vrefreshtables
+   echo
+   echo
+   vscreenreminderdisplay
+}
+vfaststopbypattern (){
+   #Takes 1-N Args:     Args 1-N are vm name patterns to start
+   #Start VMs in parallel
+   #(This function is brutally awesome.)
+   set -- $(echo $@|cut -d'/' -f1)
+   test $# -eq 0 && (echo Missing argument. Exiting... ; return )
+   for x in $@ ; do
+      screen -d -m bash -c "vgroupstopbypattern $x"
+   done
+   echo "VMs are stopping in parallel."
+   echo
+   echo
+   vrefreshtables
+   echo
+   echo
+   vscreenreminderdisplay
+}
+vfastdestroybypattern (){
+   #Takes 1-N Args:     Args 1-N are vm name patterns to start
+   #Destroys VMs in parallel
+   #(This function is brutal.)
+   set -- $(echo $@|cut -d'/' -f1)
+   test $# -eq 0 && (echo Missing argument. Exiting... ; return )
+   for x in $@ ; do
+      screen -d -m bash -c "vgroupdestroybypattern $x"
+   done
+   echo "VMs are **WAITING TO BE DESTROYED**  (in parallel)."
+   echo
+   echo
+   vrefreshtables
+   echo
+   echo
+   vscreenreminderdisplay
+}
+vscreenattachtoall (){
+   #Takes no args.
+   #Cycles through attaching to all available screen sessions.
+   echo "Press  Ctrl-A ,  then Ctrl-D   to detach from screens."
+   echo "(Screen sessions continue running in the background.)"
+   echo
+   echo "(Press any key to continue ... continues automatically in 5 seconds."
+   read -n 1 -t 5
+   for x in $(screen -ls|cut -d'.' -f1) ; do screen -rx $x; done
+}
+vgo (){
+   cd $VAGRANT_PARENT_DIR
+}
+vget_id_from_name (){
+   #Takes 1 arg:        Arg 1 is vagrant vm name to get id for
+   echo "$b_vm_only_table"|grep $1|expand|tr -s ' '|cut -d ' ' -f 1
+}
+Shelp (){
+   echo
+   echo "SSH function for faster DevOps"
+   echo "------------------------------"
+   export -f |grep ^S
+   echo
+   echo "See also: 'vhelp' and 'ahelp'"
+}
+ahelp (){
+   echo
+   echo "Ansible function for faster DevOps"
+   echo "----------------------------------"
+   export -f |grep ^a
+   echo
+   echo "See also: 'vhelp' and 'Shelp'"
+}
+vauto_create_vagrantfiles_via_wizard (){
+   echo '
+   #Takes 1 or 2 args:  Arg 1 is vm name
+   #                    Arg 2 is number of vms to create
+   #
+   ' > /dev/null
+   echo -e "\n${1}\n${2}\n\n\n" | vcreatevmsetwiz
+}
+vhelp (){
+   echo
+   echo "Vagrant functions for faster DevOps "
+   echo "------------------------------------"
+   export -f |grep ^v
+   echo
+   echo "See also: 'ahelp' and 'Shelp'"
+}
+vinfo (){
+   if [ $# -lt 1 ] ; then
+      echo "$b_vinfo_table"
+      return
+   fi
+   for x in $@ ; do
+      echo "$b_vinfo_table" |sed -rn "/Host $x/,/^$/p"
+   done
+}
+vlist (){
+   echo "$b_vm_only_table"|expand|tr -s ' '|cut -d ' ' -f 2|sort
+}
+vrefreshtables (){
+   echo "Getting vagrant global-status..."
+   export b_raw="$(if vagrant global-status | grep -o "There are no active Vagrant environments on this computer\!" ; then
+                   (vdisplay_vagrant_missing_vms_error 1>&2 ; return)
+                   else
+                      vagrant global-status
+                   fi
+                  )"
+   echo "Setting b_table_0..."
+   export b_table_0="$(echo "$b_raw"|sed -rn '/^id +name +provider +state +directory/,/^[[:space:]]+/p'|sed -rn '$n;p')"
+   echo "Setting b_table_1..."
+   export b_table_1="$(echo "$b_table_0"|sed -rn '/^-{20,}/n;p'|expand|tr -s ' '|column -t -s ' ')"
+   echo "Fixing status table headers..."
+   export b_line="$(echo "$b_table_0"|sed -rn '/^-{20,}/p')"
+   echo "Setting b_table_2..."
+   export b_table_2="$(echo "$b_table_1"|sed -rn '1p' ; echo "$b_line" ; echo "$b_table_1"|sed -rn '2,$p')"
+   echo "Setting b_vm_only_table..."
+   export b_vm_only_table="$(echo "$b_table_1"|sed -rn '2,$p')"
+   echo "Setting b_vinfo_table..."
+   export b_vinfo_table="$(for x in $(vlist);do
+                              vagrant ssh-config $(vget_id_from_name $x)| \
+                              sed -rn "/Host $x/,/^$/p"
+                           done
+                          )"
+   vtab
+}
+vssh (){
+   #Takes 1 arg:        Arg 1 is vagrant vm name to get ssh into
+   set -- $(echo $@|cut -d'/' -f1)
+   vagrant ssh $(vget_id_from_name $1)
+}
+vshortlist (){
+   (echo "VM Status" ; echo "VM Status"|sed 's/[^ ]/-/g'
+   echo "$b_vm_only_table"|expand|tr -s ' '|cut -d ' ' -f 2,4)|column -t -s ' '
+}
+vstatus (){
+   set -- $(echo $@|cut -d'/' -f1)
+   vagrant status $(vget_id_from_name $1)
+}
+vtab (){
+   echo "$b_table_2"
+}
+vportmapshow (){
+#       (     ---------------                                                                        )
+#       (---  this code works   ---------------------------------------------------------------------)
+#       (     ---------------                                                                        )
+vinfo |grep -Ew "(Host|Port)"|sed -rn '/^Host/{h;n};/^ +Port/{H;x;};s/\n//g;s/  / --> /g;p'
+}
+#end_dynamic_funcs--------------------------------------------------------------
+#
+#
+
+#main
+#TODO: * Dump a playbook template
+set_global_vagrant_environment_tables
+#
+#Export dynamic functions to environment.
+for x in $(cat $0 | \
+           sed -rn '/^#dynamic_funcs-+$/,/^#end_dynamic_funcs-+$/p' | \
+           grep -E '^(v|S|a|devops)[A-Za-z_]* \(\){' | \
+           sed 's/(){//g'
+          )
+do
+   eval "export -f $x"
+   a_vcmdz=(${a_vcmdz[@]} $x)
+done
+vrefreshtables
+export IGNOREEOF=99
+echo
+echo
+echo "------------------------------------------"
+echo "HyPerf OPSHELL (for Vagrant) is now active"
+echo "------------------------------------------"
+echo "Enter any of the following to get help:"
+echo "'vhelp' or 'Shelp' or 'ahelp'"
+bash

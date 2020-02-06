@@ -15,20 +15,27 @@ HyPerf is...
 
 **A project** dedicated to helping Linux power users, engineers, and
 administrators make the most of their Linux skills by providing them an easy
-means of taking them with them from project to project, job to job, and instance
-to instance.
+means of taking their skills with them from instance to instance, server to
+server, project to project, and job to job,
 
 **A paradigm** associated with the project that breaks from traditional Unix
-methodology of having a single tool do a single job, thereby making it easier to
-identify, manage, and deal with the kit.
+methodology: In classic Unix, you have a single tool to do a single job.  This
+means there are lots and lots of tools spread all over many different projects
+and packages.  This can be daunting when it comes to skill collation and
+maintenance over a career.  The HyPerf project sees the
+set of skills and tools needed to be successful in information technology as a
+set, not disparate tools spread out all over the place.  The paradigm practices
+that methodology by providing a single, primary kit.  This paradigm makes it
+easier to identify, manage, and deal with all of those career-long skill as a
+single kit.
 
 **A toolkit** with many tools and configuration settings included, for use in
 situations where having a single toolkit file helps the user to keep track of
 their own tools, configurations, skills, and knowledge, instead of having to
 deal with multiple packages, files, etc.
 
-HyPerf used to be a sourceforge project called 'Mooty', though it is no longer
-associated with that project at all.
+HyPerf used to be a SourceForge project called 'Mooty', though the HyPerf
+project is no longer associated with that project at all.
 
 
 HyPerf Project Objectives
@@ -37,6 +44,7 @@ HyPerf Project Objectives
   - The Vim Editor
   - The Bash Shell
   - The Linux Kernel
+  - The GNU Tool Set
 * Offer default configuration settings to users
 * Make the use of the system as fast and as easy for the user, as possible
 * Provide a means of extending power user, administrator, and engineer skills
@@ -55,31 +63,37 @@ included within.
 
 The toolkit, called 'The HyPerf ToolKit' or just 'HTK' allows users to leverage
 native features of Linux, without having to add on a lot of additional packages
-to the system.
+to the system to utilize itself.
 
 For the most part, there is really only a single file to download:
         **htk.sh**
 
 You may see an optional extension included with that name, depending on how you
-got the HTK.
+got the HTK.  It may look something like this:
+        **htk.sh--0.5.18--20200127204233**
 
-The extension just comes from when the kit was built, and is intended to
-indicate on the filename itself, which version it is, without having the run the
-command in the next sentence.
-
-The version can also be obtained by executing **"bash htk.sh -v"**.
+The long extension, beginning with double-dashes, just comes from when the kit
+is built.
 
 The extension name is not required for the kit to work, it simply makes it easy
 to tell by filename, which version it is.
 
-As for the script, it is written entirely in Bash, so it is should be pretty
-easy to read and understand, if you understand scripting.  The HTK makes it easy
-to do mass amounts of work in various Linux environments.  It includes a number
-of major features, for applying the HyPerf Paradigm to a Linux system.
+The version can also be obtained by executing **"bash htk.sh -v"**.
 
-It is BSD licensed code, so users can copy it and use it any way they want, with
-one caveat: **HYPERF IS NOT SUPPORTED AT ALL, IN ANY WAY.  (See the license for
-details.)**
+As for the code of the htk.sh file, it is written entirely in Bash, so it is
+should be pretty easy to read and understand, if you understand scripting.  The
+code is filled with documentation and self-help features to make it easy to
+learn what it is doing underneath.
+
+The HTK makes it easy to do mass amounts of work in various Linux environments,
+in Cygwin on Windows, and in a true Homebrew environment on Mac OS X.  It
+includes a number of major features, for applying the HyPerf Paradigm to a
+GNU/Linux system.
+
+It is BSD licensed code (other than an included, modified copy of the Bash Man
+Page, which is GPL licensed), so users can copy it and use it any way they want,
+with one caveat: **HYPERF IS NOT SUPPORTED AT ALL, IN ANY WAY.  See the license
+for details.**
 
 
 What are the primary features of the HTK?
@@ -88,14 +102,14 @@ The HTK comes with myriad sub-tools, collated from over 20 years working with
 Linux environments.  Those tools include a:
 * **Help-system:** For easily exploring the HTK before and after install
 * **Payload:** A base64 encoded, tarball, kit filled with useful **tools**,
-               **documents**, and **configs** that are easy utilize on Linux
+               **documents**, and **configs** that are easy to utilize on Linux
                systems
-* **Package manager:** An agnostic, self-contained system for
+* **Package manager:** An agnostic, self-contained system for...
   + **Browsing** to specific components
-  + **Selecting** specific files for extraction
+  + **Selection** of specific files for extraction
   + **Extraction** of the entire payload
-  + **Installation** **upgrade** and **removal** of the kit, either manually or
-    via fully automated option
+  + **Installation**, **upgrade**, and **removal** of the kit, either manually or
+    via fully automated options
 * **An SSH ad-hoc cluster mass-management engine:** with both parallel and serial
                                                    operation, which uses
                                                    standard Linux environment
@@ -108,6 +122,9 @@ Linux environments.  Those tools include a:
                            own use
 * **Example use code:** A safe and easy to way to see and use code from the HTK
                         in other scripts, even proprietary ones
+* **Exo.sh:** A wrapper shell for cloud, devops, power user, and configuration
+              management operations, using Vagrant, Ansible, and SSH.
+              (Coming soon: OpenSSL, AWS, Docker, and Kubernetes!)
 * **PLUSH:** The (P)ortable (L)inux (U)ser (SH)ell for fast, easy,
              HyPerf-customized pre-configuration of the default Linux Bash shell
              environment, including:
@@ -127,16 +144,16 @@ Linux environments.  Those tools include a:
    - **(many more...)**
 * **Boost:** Fast customized configuration overlay of the standard HyPerf Linux
              environment, which includes:
-   - **HYPERF.VIMRC.vim**         -- Standard Vim pre-config for the Vim editor
-   - **HYPERF.BASHRC.sh**         -- Standard Bash pre-config for the Linux Bash env
-   - **HYPERF.INPUTRC.sh**        -- Standard Bash readline pre-configuration
+   - **HYPERF.VIMRC.vim**         -- Powerful Vim pre-config for the Vim editor
+   - **HYPERF.BASHRC.sh**         -- Powerful Bash pre-config for the Linux Bash env
+   - **HYPERF.INPUTRC.sh**        -- Powerful Bash readline pre-configuration
    - **EXAMPLE.CYGWIN.BASHRC.sh** -- Example Cygwin Bash pre-configuration
 * **Freecans:** A suite of various, handy, CLI-extending tools such as:
    - **Jail_Tools:**              Tools for use with jailbird
    - **Jic:**                     Easy, incremental, backup, troubleshooting, & recovery system
    - **Mobile_Home:**             Personal root (& other) home directory, on shared systems
    - **Demo_System:**             Simple text-based recorder for demos and such
-   - **Type4me:**                 Auto-typing system for use with demo-systems demos
+   - **Type4me:**                 Auto-typing system for use with demo-system demos
    - **Dmap:**                    Dynamic registration tool for system ports, serial numbers, etc.
    - **Linprep:**                 System prep script for use with cloned VMs
    - **Nwfix:**                   Dynamic network fix script, for use with cluster nodes
@@ -151,11 +168,11 @@ Linux environments.  Those tools include a:
 
 How to get started using the HTK?
 ---------------------------------
-1. Get the HTK: -----------------------------------------> **git clone https://github.com/dabronc/hyperf.git**
+1. Get the HTK: -----------------------------------------> **git clone https://github.com/dabronc/hyperf**
 2. View the pre-installation help: ----------------------> **bash htk.sh --help**
 3. Install, upgrade, or downgrade with an HTK file: --> **bash htk.sh --full-auto-install-upg**
 4. Assure Plush is available in the shell: ---------------> **source /etc/bash.bashrc.local**
 5. Boost the shell: --------------------------------------> **boost** (Enter 'y' at all prompts)
-2. View the post-installation help: ----------------------> **htk.sh --help**
+6. View the post-installation help: ----------------------> **htk.sh --help**
 
 

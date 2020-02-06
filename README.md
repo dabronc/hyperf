@@ -122,7 +122,7 @@ Linux environments.  Those tools include a:
                            own use
 * **Example use code:** A safe and easy to way to see and use code from the HTK
                         in other scripts, even proprietary ones
-* **Exo.sh:** A wrapper shell for cloud, devops, power user, and configuration
+* **Exo.shell:** A wrapper shell for cloud, devops, power user, and configuration
               management operations, using Vagrant, Ansible, and SSH.
               (Coming soon: OpenSSL, AWS, Docker, and Kubernetes!)
 * **PLUSH:** The (P)ortable (L)inux (U)ser (SH)ell for fast, easy,
